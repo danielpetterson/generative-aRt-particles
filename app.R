@@ -3,6 +3,7 @@ library(particles)
 library(tidyverse)
 library(tidygraph)
 library(colourpicker)
+library(vroom)
 
 ## TODO Allow import of dataframe
 ## TODO Generate custom palettes
@@ -63,8 +64,11 @@ ui <- fluidPage(
                                    -3, 3, value = c(-1,1), step = 0.001),
                        actionButton("gen_image", "Generate Image")
 )),mainPanel(
+    downloadButton('downloadImage', 'Download image'),
     plotOutput("image"),
     dataTableOutput("data"))))
+
+
 
 generate_sim_data <- function(origin,ns,n,evolutions,vel_dec,xlims,ylims,alpha_init,alpha_dec,jit,pathsize,seed = NULL){
     l<-c()
@@ -134,6 +138,8 @@ generate_sim_data <- function(origin,ns,n,evolutions,vel_dec,xlims,ylims,alpha_i
 
 # Define server logic
 server <- function(input, output) {
+  
+
     
     values <- reactiveValues()
     observeEvent(input$gen_data, {
@@ -152,8 +158,10 @@ server <- function(input, output) {
         output$data <- renderDataTable(values$df())
     })
     
+
+    
     observeEvent(input$gen_image, {
-        output$image <- renderPlot({ggplot(values$df()) +
+      img<-ggplot(values$df()) +
             # geom_point(aes(x = x,
             #                y = y,
             #                group = particle,
@@ -172,9 +180,25 @@ server <- function(input, output) {
             theme(legend.position = 'none', panel.background = element_rect(fill = input$backg_col)) +
             xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
             ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2]))
-        })
-        
+      output$image <- renderPlot({img})
+
     })
+    
+    output$downloadImage <- downloadHandler(
+      filename = "Modified_image.jpeg",
+      contentType = "image/jpeg",
+      content = function(file) {
+        ## copy the file from the updated image location to the final download location
+        file.copy(img, file)
+      }
+    )  
+    #   downloadHandler(
+    #   filename = function() {'test.png' },
+    #   content = function(file) {
+    #     ggsave(file, plot = output$image(), device = "png")
+    #   }
+    # )
+    
 }
 
 # Run the application 
