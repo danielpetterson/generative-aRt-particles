@@ -23,6 +23,12 @@ ui <- fluidPage(
                                    "Origin Type",
                                    c("Single Point", "Within Range"),
                                    selected = "Single Point"),
+                       sliderInput("xlims_data",
+                                   "Range of Initial X Values",
+                                   -1000, 1000, value = c(-100,100)),
+                       sliderInput("ylims_data",
+                                   "Range of Initial Y Values",
+                                   -1000, 1000, value = c(-100,100)),
                        numericInput("n_sims",
                                     "Number of Simulations",
                                     1, min = 1, max = 35),
@@ -37,13 +43,7 @@ ui <- fluidPage(
                                     20, min = 1, max = 500),
                        sliderInput("vel_dec",
                                    "Velocity Decay",
-                                    0, 1, 0.3, step = 0.05),
-                       sliderInput("xlims_data",
-                                   "Range of Initial X Values",
-                                   -1000, 1000, value = c(-100,100)),
-                       sliderInput("ylims_data",
-                                   "Range of Initial Y Values",
-                                   -1000, 1000, value = c(-100,100)),
+                                    0, 1, 0.3, step = 0.01),
                        actionButton("gen_data", "Generate Data")
                    ),
                    wellPanel(
@@ -79,7 +79,7 @@ generate_sim_data <- function(origin,ns,n,evolutions,vel_dec,xlims,ylims,alpha_i
         x <- isolate(runif(1, min = loc[1] - abs(xlims[1]), max = loc[1] + abs(xlims[2])))
         y <- isolate(runif(1, min = loc[2] - abs(ylims[1]), max = loc[2] + abs(ylims[2])))
       } else {
-        loc <- runif(2, min = -20000, max = 20000)
+#        loc <- runif(2, min = -20000, max = 20000)
         x <- runif(n, min = xlims[1], max = xlims[2])
         y <- runif(n, min = ylims[1], max = ylims[2])
       }
@@ -89,12 +89,12 @@ generate_sim_data <- function(origin,ns,n,evolutions,vel_dec,xlims,ylims,alpha_i
         
         b <- create_empty(n) %>% 
             simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
-#            wield(link_force) %>%
-#            wield(manybody_force, strength = 0.5) %>% 
-#            wield(mean_force, include_self = TRUE) %>%
-#            wield(random_force, strength = 10) %>% 
-#            wield(center_force, sample(seq(-100:100)),sample(seq(-100:100)), strength = 100) %>%
-#            wield(collision_force, radius = runif(100, min = 0.1, 0.2), n_iter = 5) %>%
+           wield(link_force) %>%
+           wield(manybody_force, strength = 0.5) %>%
+           wield(mean_force, include_self = TRUE) %>%
+           wield(random_force, strength = 10) %>%
+           wield(center_force, sample(seq(-100:100)),sample(seq(-100:100)), strength = 100) %>%
+           wield(collision_force, radius = runif(100, min = 0.1, 0.2), n_iter = 5) %>%
             evolve(evolutions, record)
         l<-c(l,b)
         i=i+1
@@ -154,13 +154,13 @@ server <- function(input, output) {
     
     observeEvent(input$gen_image, {
         output$image <- renderPlot({ggplot(values$df()) +
-            geom_point(aes(x = x,
-                           y = y,
-                           group = particle,
-                           colour = as.factor(time),
-                           alpha = alpha,
-                           xend = xend,
-                           yend = yend), size = values$df()$pathsize) + 
+            # geom_point(aes(x = x,
+            #                y = y,
+            #                group = particle,
+            #                colour = as.factor(time),
+            #                alpha = alpha,
+            #                xend = xend,
+            #                yend = yend), size = values$df()$pathsize) + 
             geom_curve(aes(x = x,
                            y = y,
                            group = particle,
