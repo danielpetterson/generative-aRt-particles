@@ -33,6 +33,9 @@ ui <- fluidPage(
                        numericInput("n_sims",
                                     "Number of Simulations",
                                     1, min = 1, max = 35),
+                       numericInput("max_dist_sims",
+                                    "Maximum Distance Between Simulations",
+                                    20, min = 1, max = 10000000),
                        numericInput("n_particles",
                                     "Number of Particles per Simulation",
                                     20, min = 1, max = 500),
@@ -70,7 +73,7 @@ ui <- fluidPage(
 
 
 
-generate_sim_data <- function(origin,ns,n,evolutions,vel_dec,xlims,ylims,alpha_init,alpha_dec,jit,pathsize,seed = NULL){
+generate_sim_data <- function(origin,ns,max_dist,n,evolutions,vel_dec,xlims,ylims,alpha_init,alpha_dec,jit,pathsize,seed = NULL){
     l<-c()
     i=1
     
@@ -79,7 +82,7 @@ generate_sim_data <- function(origin,ns,n,evolutions,vel_dec,xlims,ylims,alpha_i
     while(i <= ns) {
         # Generate starting point coordinates
       if(origin == "Single Point") {
-        loc <- isolate(runif(2, min = -20000, max = 20000))
+        loc <- isolate(runif(2, min = 0, max = max_dist))
         x <- isolate(runif(1, min = loc[1] - abs(xlims[1]), max = loc[1] + abs(xlims[2])))
         y <- isolate(runif(1, min = loc[2] - abs(ylims[1]), max = loc[2] + abs(ylims[2])))
       } else {
@@ -120,14 +123,14 @@ generate_sim_data <- function(origin,ns,n,evolutions,vel_dec,xlims,ylims,alpha_i
     traces$sim <- as.factor(rep(1:ns, each=evolutions*n))
     traces$time <- rep(1:evolutions, each=n)
     traces$alpha <- alpha_init * (1 - alpha_dec)^(traces$time)
-    
+
     traces_end <- traces %>%
       dplyr::mutate(time = time - 1) %>%
       dplyr::filter(time > 0)
-    
+
     traces <- traces %>%
       dplyr::filter(time < max(time))
-    
+
     traces$xend <- traces_end$x
     traces$yend <- traces_end$y
     traces$time <- as.factor(traces$time)
@@ -145,6 +148,7 @@ server <- function(input, output) {
     observeEvent(input$gen_data, {
         values$df <- isolate(reactive({generate_sim_data(input$origin,
                                                      input$n_sims,
+                                                     input$max_dist_sims,
                                                      input$n_particles,
                                                      input$evolutions,
                                                      input$vel_dec,
