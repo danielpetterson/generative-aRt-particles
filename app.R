@@ -2,6 +2,7 @@ library(shiny)
 library(particles)
 library(tidyverse)
 library(magrittr)
+library(ggforce)
 library(tidygraph)
 library(colourpicker)
 library(RColorBrewer)
@@ -117,7 +118,7 @@ ui <- fluidPage(
 #                       actionButton("gen_image", "Generate Image"),
                        selectInput("geom_type",
                                    "Geom Type",
-                                   c("Point", "Curve"),
+                                   c("Point", "Curve", "Link"),
                                    selected = "Point"),
                        colourInput("col_element", "Colour Palette", "white",
                                     showColour = "background"),
@@ -144,7 +145,7 @@ ui <- fluidPage(
            actionButton("gen_image", "Update Image")),
     textOutput('test'),
     dataTableOutput("data"),
-    downloadButton('downloadImage', 'Download image'),
+    downloadButton('download', 'Download image'),
     plotOutput("image",click="imageclick")
     )))
 
@@ -324,8 +325,17 @@ server <- function(input, output) {
                          colour = colour_factor,
                          alpha = alpha,
                          xend = xend,
-                         yend = yend), size = values$df()$pathsize)
-      }
+                         yend = yend, 
+                         size = values$df()$pathsize))
+      } else if (input$geom_type == "Link") {
+        img <- img_base + geom_link(aes(x = x,
+                                        y = y,
+                                        colour = colour_factor,
+                                        alpha = alpha,
+                                        xend = xend,
+                                        yend = yend), 
+                                        size = values$df()$pathsize[1])
+      } 
       output$image <- renderPlot({img})
 
     })
@@ -338,12 +348,27 @@ server <- function(input, output) {
         file.copy(img, file)
       }
     )  
-    #   downloadHandler(
-    #   filename = function() {'test.png' },
+    # output$down <- downloadHandler(
+    #   filename =  function() {
+    #     paste("iris", input$var3, sep=".")
+    #   },
+    #   # content is a function with argument file. content writes the plot to the device
     #   content = function(file) {
-    #     ggsave(file, plot = output$image(), device = "png")
-    #   }
+    #     if(input$var3 == "png")
+    #       png(file) # open the png device
+    #     else
+    #       pdf(file) # open the pdf device
+    #     myPlot() 
+    #     dev.off()  # turn the device off
+    #     
+    #   } 
     # )
+    output$download <-  downloadHandler(
+      filename = function() {'test.png' },
+      content = function(file) {
+        ggsave(file, plot = output$image(), device = "png")
+      }
+    )
     
 }
 
