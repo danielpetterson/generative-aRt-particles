@@ -1,8 +1,10 @@
 library(shiny)
 library(particles)
 library(tidyverse)
+library(magrittr)
 library(tidygraph)
 library(colourpicker)
+library(RColorBrewer)
 
 ## TODO Allow import of dataframe
 ## TODO Generate custom palettes
@@ -19,7 +21,7 @@ ui <- fluidPage(
                                  selected = "Generate Data"),
                      conditionalPanel(
                        condition = "input.section == 'Generate Data'",
-                       actionButton("gen_data", "Generate Data"),
+                       
                        numericInput("seed",
                                     "Seed",
                                     1, min = 1, max = 1000),
@@ -107,16 +109,19 @@ ui <- fluidPage(
                                  0, 10, value = 0, step = 0.1),
                      sliderInput("y_str",
                                  "Y-Axis Strength",
-                                 0, 10, value = 0, step = 0.1)),
+                                 0, 10, value = 0, step = 0.1))
                    
                    ),
                      conditionalPanel(
                        condition = "input.section == 'Display'",
-                       actionButton("gen_image", "Generate Image"),
+#                       actionButton("gen_image", "Generate Image"),
                        selectInput("geom_type",
                                    "Geom Type",
                                    c("Point", "Curve"),
                                    selected = "Point"),
+                       colourInput("col_element", "Colour Palette", "white",
+                                    showColour = "background"),
+                       actionButton("col_select", "Add Colour"),
                        selectInput("col_factor",
                                    "Colour Factor",
                                    c("Evolution", "Particle", "Simulation"),
@@ -135,6 +140,8 @@ ui <- fluidPage(
                        sliderInput("ylims_disp", "Y-axis Scale",
                                    -3, 3, value = c(-1,1), step = 0.001)
 ))),mainPanel(
+  fluidRow(actionButton("gen_data", "Generate Data"), 
+           actionButton("gen_image", "Update Image")),
     textOutput('test'),
     dataTableOutput("data"),
     downloadButton('downloadImage', 'Download image'),
@@ -279,14 +286,23 @@ server <- function(input, output) {
         output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
     
-
+    colour_palette_vec <- character()
+      
+    observeEvent(input$col_select, {
+      colour_palette_vec <- append(colour_palette_vec,as.character(input$col_element))
+      output$test <- renderText(colour_palette_vec)
+#      print(colour_palette_vec)
+    })
     
     observeEvent(input$gen_image, {
+      
+      
       img_base<-ggplot(values$df()) +
             theme_void() + 
             theme(legend.position = 'none', panel.background = element_rect(fill = input$backg_col)) +
             xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
-            ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2]))
+            ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2])) #+
+            scale_color_manual()
       
       if (input$col_factor == "Evolution") {
         colour_factor <-as.factor(values$df()$time)
@@ -328,7 +344,7 @@ server <- function(input, output) {
     #     ggsave(file, plot = output$image(), device = "png")
     #   }
     # )
-    output$test <- renderText(input$mean_self)#imageclick[["x"]])
+    
 }
 
 # Run the application 
