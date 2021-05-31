@@ -67,13 +67,53 @@ ui <- fluidPage(
                                    -3, 3, value = c(-1,1), step = 0.001),
                        actionButton("gen_image", "Generate Image")
 )),mainPanel(
+  fluidRow(
+    column(3,
+           h4("Forces"),
+           selectInput("forces", "Forces to Apply:",
+                       c("Random" = "f_rand",
+                         "Link Force" = "f_link",
+                         "Collision Force" = "f_coll",
+                         "Manybody" = "f_mb",
+                         "Mean Force" = "f_mean"),
+                          selected = "Random"),
+           conditionalPanel(
+             condition = "input.forces == 'f_rand'",
+             sliderInput("xlims_rand", "X-axis Bounds",
+                         -1000, 1000, value = c(-1000,1000), step = 1),
+             sliderInput("ylims_rand", "Y-axis Bounds",
+                         -1000, 1000, value = c(-1000,1000), step = 1)),
+           conditionalPanel(
+             condition = "input.forces == 'f_link'",
+             numericInput("link_str",
+                          "Strength",
+                          0, min = -500, max = 500),
+             numericInput("link_dist",
+                        "Distance",
+                        0, min = 0, max = 500)),
+           conditionalPanel(
+             condition = "input.forces == 'f_coll'",
+             numericInput("coll_str",
+                          "Strength",
+                          0, min = 0, max = 500),
+             numericInput("coll_rad",
+                          "Radius",
+                          0, min = 0, max = 500)),
+           conditionalPanel(
+             condition = "input.forces == 'f_mb'",
+             numericInput("mb_str",
+                            "Strength",
+                            0, min = -500, max = 500)),
+           
+    ),
+    textOutput('test'),
     downloadButton('downloadImage', 'Download image'),
     plotOutput("image"),
-    dataTableOutput("data"))))
+    dataTableOutput("data")))))
 
 
 
-generate_sim_data <- function(origin,ns,max_dist,n,evolutions,vel_dec,xlims,ylims,alpha_init,alpha_dec,jit,pathsize,seed = NULL){
+generate_sim_data <- function(origin,ns,max_dist,n,evolutions,vel_dec,xlims,ylims,alpha_init,alpha_dec,jit,pathsize,seed = NULL,rand_x,rand_y){
     l<-c()
     i=1
     
@@ -95,14 +135,14 @@ generate_sim_data <- function(origin,ns,max_dist,n,evolutions,vel_dec,xlims,ylim
         y_vel <- runif(n, min = -1, max = 1)
         
         b <- create_empty(n) %>% 
-            simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
-           wield(link_force) %>%
-           wield(manybody_force, strength = 0.5) %>%
-           wield(mean_force, include_self = TRUE) %>%
-           wield(random_force, strength = 10) %>%
-           wield(center_force, sample(seq(-100:100)),sample(seq(-100:100)), strength = 100) %>%
-           wield(collision_force, radius = runif(100, min = 0.1, 0.2), n_iter = 5) %>%
-            evolve(evolutions, record)
+          simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
+          wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
+          wield(link_force) %>%
+          wield(manybody_force, strength = 0.5) %>%
+          wield(mean_force, include_self = TRUE) %>%
+          wield(center_force, sample(seq(-100:100)),sample(seq(-100:100)), strength = 100) %>%
+          wield(collision_force, radius = runif(100, min = 0.1, 0.2), n_iter = 5) %>%
+          evolve(evolutions, record)
         l<-c(l,b)
         i=i+1
     }
@@ -158,8 +198,11 @@ server <- function(input, output) {
                                                      input$alph_dec,
                                                      input$jit,
                                                      input$pathsize,
-                                                     input$seed)}))
-        output$data <- renderDataTable(values$df())
+                                                     input$seed,
+                                                     input$xlims_rand,
+                                                     input$ylims_rand
+                                                    )}))
+        output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
     
 
@@ -202,7 +245,7 @@ server <- function(input, output) {
     #     ggsave(file, plot = output$image(), device = "png")
     #   }
     # )
-    
+    output$test <- renderText(input$forces)
 }
 
 # Run the application 
