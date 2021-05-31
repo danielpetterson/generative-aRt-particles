@@ -74,6 +74,7 @@ ui <- fluidPage(
                        c("Random" = "f_rand",
                          "Link Force" = "f_link",
                          "Collision Force" = "f_coll",
+                         "Center Force" = "f_center",
                          "Manybody" = "f_mb",
                          "Mean Force" = "f_mean"),
                           selected = "Random"),
@@ -104,6 +105,15 @@ ui <- fluidPage(
              numericInput("mb_str",
                             "Strength",
                             0, min = -500, max = 500)),
+           conditionalPanel(
+             condition = "input.forces == 'f_mean'",
+             numericInput("mean_self",
+                          "Strength",
+                          0, min = -500, max = 500),
+            selectInput("mean_self",
+                       "Include Own Speed",
+                       c("Yes", "No"),
+                       selected = "No")),
            
     ),
     textOutput('test'),
@@ -138,10 +148,10 @@ generate_sim_data <- function(origin,ns,max_dist,n,evolutions,vel_dec,xlims,ylim
           simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
           wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
           wield(link_force) %>%
+          wield(collision_force, radius = runif(100, min = 0.1, 0.2), n_iter = 5) %>%
           wield(manybody_force, strength = 0.5) %>%
           wield(mean_force, include_self = TRUE) %>%
-          wield(center_force, sample(seq(-100:100)),sample(seq(-100:100)), strength = 100) %>%
-          wield(collision_force, radius = runif(100, min = 0.1, 0.2), n_iter = 5) %>%
+
           evolve(evolutions, record)
         l<-c(l,b)
         i=i+1
