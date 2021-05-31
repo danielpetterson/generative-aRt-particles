@@ -117,6 +117,10 @@ ui <- fluidPage(
                                    "Geom Type",
                                    c("Point", "Curve"),
                                    selected = "Point"),
+                       selectInput("col_factor",
+                                   "Colour Factor",
+                                   c("Evolution", "Particle", "Simulation"),
+                                   selected = "Evolution"),
                        sliderInput("alph_init", "Initial Opacity",
                                    0, 1, 0.8, step = 0.05),
                        sliderInput("alph_dec", "Opacity Decay",
@@ -284,18 +288,24 @@ server <- function(input, output) {
             xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
             ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2]))
       
+      if (input$col_factor == "Evolution") {
+        colour_factor <-as.factor(values$df()$time)
+      } else if (input$col_factor == "Particle") {
+        colour_factor <- as.factor(values$df()$particle)
+      } else if (input$col_factor == "Simulation") {
+        colour_factor <- as.factor(values$df()$particle)
+      }
+      
       if (input$geom_type == "Point") {
            img <- img_base + geom_point(aes(x = x,
                          y = y,
-                         group = particle,
-                         colour = as.factor(time),
+                         colour = colour_factor,
                          alpha = alpha)
                          , size = values$df()$pathsize)
       } else if (input$geom_type == "Curve") {
         img <- img_base + geom_curve(aes(x = x,
                          y = y,
-                         # group = particle,
-                         colour = as.factor(time),
+                         colour = colour_factor,
                          alpha = alpha,
                          xend = xend,
                          yend = yend), size = values$df()$pathsize)
