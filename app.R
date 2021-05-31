@@ -3,12 +3,9 @@ library(particles)
 library(tidyverse)
 library(tidygraph)
 library(colourpicker)
-library(vroom)
 
 ## TODO Allow import of dataframe
 ## TODO Generate custom palettes
-## TODO Change geom_type
-## TODO Apply forces with specified parameters
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -16,7 +13,13 @@ ui <- fluidPage(
         fluidRow(
             column(3,
                    wellPanel(
-                       h4("Data"),
+                     selectInput("section",
+                                 "Section",
+                                 c("Generate Data", "Modify Forces", "Display"),
+                                 selected = "Generate Data"),
+                     conditionalPanel(
+                       condition = "input.section == 'Generate Data'",
+                       actionButton("gen_data", "Generate Data"),
                        numericInput("seed",
                                     "Seed",
                                     1, min = 1, max = 1000),
@@ -42,16 +45,78 @@ ui <- fluidPage(
                        sliderInput("evolutions",
                                    "Number of Evolutions",
                                    1,300, 20, step = 1),
+                       sliderInput("subset_evolutions",
+                                   "Subset Evolutions",
+                                   0, 300, value = c(0,300)),
+                      
                        numericInput("jit",
                                     "Jitter",
                                     20, min = 1, max = 500),
                        sliderInput("vel_dec",
                                    "Velocity Decay",
-                                    0, 1, 0.3, step = 0.01),
-                       actionButton("gen_data", "Generate Data")
+                                    0, 1, 0.3, step = 0.01)
                    ),
-                   wellPanel(
-                       h4("Display"),
+                   conditionalPanel(
+                     condition = "input.section == 'Modify Forces'",
+                   selectInput("forces", "Forces to Apply:",
+                               c("Random" = "f_rand",
+                                 "Link Force" = "f_link",
+                                 "Collision Force" = "f_coll",
+                                 "Manybody" = "f_mb",
+                                 "Mean Force" = "f_mean",
+                                 "Attract to Point" = "f_point"),
+                               selected = "Random"),
+                   conditionalPanel(
+                     condition = "input.forces == 'f_rand'",
+                     sliderInput("xlims_rand", "X-axis Bounds",
+                                 -1000, 1000, value = c(-1000,1000), step = 1),
+                     sliderInput("ylims_rand", "Y-axis Bounds",
+                                 -1000, 1000, value = c(-1000,1000), step = 1)),
+                   conditionalPanel(
+                     condition = "input.forces == 'f_link'",
+                     numericInput("link_str",
+                                  "Strength",
+                                  0, min = -500, max = 500),
+                     numericInput("link_dist",
+                                  "Distance",
+                                  0, min = 0, max = 500)),
+                   conditionalPanel(
+                     condition = "input.forces == 'f_coll'",
+                     numericInput("coll_str",
+                                  "Strength",
+                                  0, min = 0, max = 500),
+                     numericInput("coll_rad",
+                                  "Radius",
+                                  0, min = 0, max = 500)),
+                   conditionalPanel(
+                     condition = "input.forces == 'f_mb'",
+                     numericInput("mb_str",
+                                  "Strength",
+                                  0, min = -500, max = 500)),
+                   conditionalPanel(
+                     condition = "input.forces == 'f_mean'",
+                     selectInput("mean_self",
+                                 "Include Own Speed",
+                                 c("Yes", "No"),
+                                 selected = "No")),
+                   conditionalPanel(
+                     h6("Click on the image to choose a point"),
+                     condition = "input.forces == 'f_point'",
+                     sliderInput("x_str",
+                                 "X-Axis Strength",
+                                 0, 10, value = 0, step = 0.1),
+                     sliderInput("y_str",
+                                 "Y-Axis Strength",
+                                 0, 10, value = 0, step = 0.1)),
+                   
+                   ),
+                     conditionalPanel(
+                       condition = "input.section == 'Display'",
+                       actionButton("gen_image", "Generate Image"),
+                       selectInput("geom_type",
+                                   "Geom Type",
+                                   c("Point", "Curve"),
+                                   selected = "Point"),
                        sliderInput("alph_init", "Initial Opacity",
                                    0, 1, 0.8, step = 0.05),
                        sliderInput("alph_dec", "Opacity Decay",
@@ -64,93 +129,44 @@ ui <- fluidPage(
                        sliderInput("xlims_disp", "X-axis Scale",
                                    -3, 3, value = c(-1,1), step = 0.001),
                        sliderInput("ylims_disp", "Y-axis Scale",
-                                   -3, 3, value = c(-1,1), step = 0.001),
-                       actionButton("gen_image", "Generate Image")
-)),mainPanel(
-  fluidRow(
-    column(3,
-           h4("Forces"),
-           selectInput("forces", "Forces to Apply:",
-                       c("Random" = "f_rand",
-                         "Link Force" = "f_link",
-                         "Collision Force" = "f_coll",
-                         "Manybody" = "f_mb",
-                         "Mean Force" = "f_mean",
-                         "Attract to Point" = "f_point"),
-                          selected = "Random"),
-           conditionalPanel(
-             condition = "input.forces == 'f_rand'",
-             sliderInput("xlims_rand", "X-axis Bounds",
-                         -1000, 1000, value = c(-1000,1000), step = 1),
-             sliderInput("ylims_rand", "Y-axis Bounds",
-                         -1000, 1000, value = c(-1000,1000), step = 1)),
-           conditionalPanel(
-             condition = "input.forces == 'f_link'",
-             numericInput("link_str",
-                          "Strength",
-                          0, min = -500, max = 500),
-             numericInput("link_dist",
-                        "Distance",
-                        0, min = 0, max = 500)),
-           conditionalPanel(
-             condition = "input.forces == 'f_coll'",
-             numericInput("coll_str",
-                          "Strength",
-                          0, min = 0, max = 500),
-             numericInput("coll_rad",
-                          "Radius",
-                          0, min = 0, max = 500)),
-           conditionalPanel(
-             condition = "input.forces == 'f_mb'",
-             numericInput("mb_str",
-                            "Strength",
-                            0, min = -500, max = 500)),
-           conditionalPanel(
-             condition = "input.forces == 'f_mean'",
-            selectInput("mean_self",
-                       "Include Own Speed",
-                       c("Yes", "No"),
-                       selected = "No")),
-           conditionalPanel(
-             h6("Click on the image to choose a point"),
-             condition = "input.forces == 'f_point'",
-             sliderInput("x_str",
-                          "X-Axis Strength",
-                          0, 100, value = 0, step = 1),
-             sliderInput("y_str",
-                         "Y-Axis Strength",
-                          0, 100, value = 0, step = 1)),
-           
-    ),
+                                   -3, 3, value = c(-1,1), step = 0.001)
+))),mainPanel(
     textOutput('test'),
+    dataTableOutput("data"),
     downloadButton('downloadImage', 'Download image'),
-    plotOutput("image",click="imageclick"),
-#    dataTableOutput("data")
-    ))))
+    plotOutput("image",click="imageclick")
+    )))
 
 
-
-generate_sim_data <- function(origin,
-                              ns,
-                              max_dist,
-                              n,
-                              evolutions,
-                              vel_dec,
-                              xlims,
-                              ylims,
-                              alpha_init,
-                              alpha_dec,
-                              jit,
-                              pathsize,
-                              seed = NULL,
-                              rand_x,
-                              rand_y,
-                              link_strength,
-                              link_dist,
-                              coll_strength,
-                              coll_rad,
-                              mb_strength,
-                              mean_self_include) {
+# Define server logic
+server <- function(input, output) {
+  
+  generate_sim_data <- function(origin,
+                                ns,
+                                max_dist,
+                                n,
+                                evolutions,
+                                evol_subset,
+                                vel_dec,
+                                xlims,
+                                ylims,
+                                alpha_init,
+                                alpha_dec,
+                                jit,
+                                pathsize,
+                                seed = NULL,
+                                rand_x,
+                                rand_y,
+                                link_strength,
+                                link_dist,
+                                coll_strength,
+                                coll_rad,
+                                mb_strength,
+                                mean_self_include,
+                                x_force_str,
+                                x_force_loc,
+                                y_force_str,
+                                y_force_loc){
     l<-c()
     i=1
     
@@ -163,30 +179,31 @@ generate_sim_data <- function(origin,
     isolate(set.seed(seed))
     
     while(i <= ns) {
-        # Generate starting point coordinates
+      # Generate starting point coordinates
       if(origin == "Single Point") {
         loc <- isolate(runif(2, min = 0, max = max_dist))
         x <- isolate(runif(1, min = loc[1] - abs(xlims[1]), max = loc[1] + abs(xlims[2])))
         y <- isolate(runif(1, min = loc[2] - abs(ylims[1]), max = loc[2] + abs(ylims[2])))
       } else {
-#        loc <- runif(2, min = -20000, max = 20000)
         x <- runif(n, min = xlims[1], max = xlims[2])
         y <- runif(n, min = ylims[1], max = ylims[2])
       }
-        # Generate initial velocity of particle
-        x_vel <- runif(n, min = -1, max = 1)
-        y_vel <- runif(n, min = -1, max = 1)
-        
-        b <- create_empty(n) %>% 
-          simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
-          wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
-          wield(link_force, strength=link_strength, distance=link_dist) %>%
-          wield(collision_force, strength=coll_strength, radius=coll_rad) %>%
-          wield(manybody_force, strength = mb_strength) %>%
-          wield(mean_force, include_self = self_include) %>%
-          evolve(evolutions, record)
-        l<-c(l,b)
-        i=i+1
+      # Generate initial velocity of particle
+      x_vel <- runif(n, min = -1, max = 1)
+      y_vel <- runif(n, min = -1, max = 1)
+      
+      b <- create_empty(n) %>% 
+        simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
+        wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
+        wield(link_force, strength=link_strength, distance=link_dist) %>%
+        wield(collision_force, strength=coll_strength, radius=coll_rad) %>%
+        wield(manybody_force, strength = mb_strength) %>%
+        wield(mean_force, include_self = self_include) %>%
+        wield(x_force, strength=x_force_str, x=x_force_loc) %>%
+        wield(y_force, strength=y_force_str, y=y_force_loc) %>%
+        evolve(evolutions, record)
+      l<-c(l,b)
+      i=i+1
     }
     # Extract simulation history
     hist <- l[seq(6, length(l), 6)]
@@ -205,25 +222,24 @@ generate_sim_data <- function(origin,
     traces$sim <- as.factor(rep(1:ns, each=evolutions*n))
     traces$time <- rep(1:evolutions, each=n)
     traces$alpha <- alpha_init * (1 - alpha_dec)^(traces$time)
-
+    
     traces_end <- traces %>%
       dplyr::mutate(time = time - 1) %>%
       dplyr::filter(time > 0)
-
+    
     traces <- traces %>%
       dplyr::filter(time < max(time))
-
+    
     traces$xend <- traces_end$x
     traces$yend <- traces_end$y
     traces$time <- as.factor(traces$time)
     traces$pathsize <- pathsize
-      
+    
+    traces %<>% filter(as.numeric(time) >= min(evol_subset) & as.numeric(time) <= max(evol_subset))
+    
     return(traces)
-}
-
-# Define server logic
-server <- function(input, output) {
-  
+  }
+    
 
     
     values <- reactiveValues()
@@ -233,6 +249,7 @@ server <- function(input, output) {
                                                      input$max_dist_sims,
                                                      input$n_particles,
                                                      input$evolutions,
+                                                     input$subset_evolutions,
                                                      input$vel_dec,
                                                      input$xlims_data,
                                                      input$ylims_data,
@@ -248,7 +265,12 @@ server <- function(input, output) {
                                                      input$coll_str,
                                                      input$coll_rad,
                                                      input$mb_str,
-                                                     input$mean_self
+                                                     input$mean_self,
+                                                     input$x_str,
+                                                     input$imageclick[["x"]],
+                                                     input$y_str,
+                                                     input$imageclick[["y"]]
+                                                     
                                                     )}))
         output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
@@ -256,25 +278,28 @@ server <- function(input, output) {
 
     
     observeEvent(input$gen_image, {
-      img<-ggplot(values$df()) +
-            # geom_point(aes(x = x,
-            #                y = y,
-            #                group = particle,
-            #                colour = as.factor(time),
-            #                alpha = alpha,
-            #                xend = xend,
-            #                yend = yend), size = values$df()$pathsize) + 
-            geom_curve(aes(x = x,
-                           y = y,
-                           group = particle,
-                           colour = as.factor(time),
-                           alpha = alpha,
-                           xend = xend,
-                           yend = yend), size = values$df()$pathsize) +
+      img_base<-ggplot(values$df()) +
             theme_void() + 
             theme(legend.position = 'none', panel.background = element_rect(fill = input$backg_col)) +
             xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
             ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2]))
+      
+      if (input$geom_type == "Point") {
+           img <- img_base + geom_point(aes(x = x,
+                         y = y,
+                         group = particle,
+                         colour = as.factor(time),
+                         alpha = alpha)
+                         , size = values$df()$pathsize)
+      } else if (input$geom_type == "Curve") {
+        img <- img_base + geom_curve(aes(x = x,
+                         y = y,
+                         # group = particle,
+                         colour = as.factor(time),
+                         alpha = alpha,
+                         xend = xend,
+                         yend = yend), size = values$df()$pathsize)
+      }
       output$image <- renderPlot({img})
 
     })
