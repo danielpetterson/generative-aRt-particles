@@ -74,9 +74,9 @@ ui <- fluidPage(
                        c("Random" = "f_rand",
                          "Link Force" = "f_link",
                          "Collision Force" = "f_coll",
-                         "Center Force" = "f_center",
                          "Manybody" = "f_mb",
-                         "Mean Force" = "f_mean"),
+                         "Mean Force" = "f_mean",
+                         "Attract to Point" = "f_point"),
                           selected = "Random"),
            conditionalPanel(
              condition = "input.forces == 'f_rand'",
@@ -107,25 +107,58 @@ ui <- fluidPage(
                             0, min = -500, max = 500)),
            conditionalPanel(
              condition = "input.forces == 'f_mean'",
-             numericInput("mean_self",
-                          "Strength",
-                          0, min = -500, max = 500),
             selectInput("mean_self",
                        "Include Own Speed",
                        c("Yes", "No"),
                        selected = "No")),
+           conditionalPanel(
+             h6("Click on the image to choose a point"),
+             condition = "input.forces == 'f_point'",
+             sliderInput("x_str",
+                          "X-Axis Strength",
+                          0, 100, value = 0, step = 1),
+             sliderInput("y_str",
+                         "Y-Axis Strength",
+                          0, 100, value = 0, step = 1)),
            
     ),
     textOutput('test'),
     downloadButton('downloadImage', 'Download image'),
-    plotOutput("image"),
-    dataTableOutput("data")))))
+    plotOutput("image",click="imageclick"),
+#    dataTableOutput("data")
+    ))))
 
 
 
-generate_sim_data <- function(origin,ns,max_dist,n,evolutions,vel_dec,xlims,ylims,alpha_init,alpha_dec,jit,pathsize,seed = NULL,rand_x,rand_y){
+generate_sim_data <- function(origin,
+                              ns,
+                              max_dist,
+                              n,
+                              evolutions,
+                              vel_dec,
+                              xlims,
+                              ylims,
+                              alpha_init,
+                              alpha_dec,
+                              jit,
+                              pathsize,
+                              seed = NULL,
+                              rand_x,
+                              rand_y,
+                              link_strength,
+                              link_dist,
+                              coll_strength,
+                              coll_rad,
+                              mb_strength,
+                              mean_self_include) {
     l<-c()
     i=1
+    
+    if (mean_self_include == 'Yes') {
+      self_include <- TRUE
+    } else {
+      self_include <- FALSE
+    }
     
     isolate(set.seed(seed))
     
@@ -147,11 +180,10 @@ generate_sim_data <- function(origin,ns,max_dist,n,evolutions,vel_dec,xlims,ylim
         b <- create_empty(n) %>% 
           simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
           wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
-          wield(link_force) %>%
-          wield(collision_force, radius = runif(100, min = 0.1, 0.2), n_iter = 5) %>%
-          wield(manybody_force, strength = 0.5) %>%
-          wield(mean_force, include_self = TRUE) %>%
-
+          wield(link_force, strength=link_strength, distance=link_dist) %>%
+          wield(collision_force, strength=coll_strength, radius=coll_rad) %>%
+          wield(manybody_force, strength = mb_strength) %>%
+          wield(mean_force, include_self = self_include) %>%
           evolve(evolutions, record)
         l<-c(l,b)
         i=i+1
@@ -210,7 +242,13 @@ server <- function(input, output) {
                                                      input$pathsize,
                                                      input$seed,
                                                      input$xlims_rand,
-                                                     input$ylims_rand
+                                                     input$ylims_rand,
+                                                     input$link_str,
+                                                     input$link_dist,
+                                                     input$coll_str,
+                                                     input$coll_rad,
+                                                     input$mb_str,
+                                                     input$mean_self
                                                     )}))
         output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
@@ -255,7 +293,7 @@ server <- function(input, output) {
     #     ggsave(file, plot = output$image(), device = "png")
     #   }
     # )
-    output$test <- renderText(input$forces)
+    output$test <- renderText(input$mean_self)#imageclick[["x"]])
 }
 
 # Run the application 
