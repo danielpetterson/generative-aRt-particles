@@ -1,4 +1,5 @@
 library(shiny)
+library(shinyBS)
 library(particles)
 library(tidyverse)
 library(magrittr)
@@ -27,37 +28,57 @@ ui <- fluidPage(
                        numericInput("seed",
                                     "Seed",
                                     1, min = 1, max = 1000),
+                       bsTooltip("seed", "Sets the seed for the pseudorandom number generator",
+                                 "right", options = list(container = "body")),
                        selectInput("origin",
                                    "Origin Type",
                                    c("Single Point", "Within Range"),
                                    selected = "Single Point"),
+                       bsTooltip("origin", "Would you like your particles to start from a single point or within a predefined range?",
+                                 "right", options = list(container = "body")),
+                       conditionalPanel(
+                         condition = "input.origin == 'Within Range'",
                        sliderInput("xlims_data",
                                    "Range of Initial X Values",
                                    -1000, 1000, value = c(-100,100)),
                        sliderInput("ylims_data",
                                    "Range of Initial Y Values",
-                                   -1000, 1000, value = c(-100,100)),
+                                   -1000, 1000, value = c(-100,100))),
                        numericInput("n_sims",
                                     "Number of Simulations",
                                     5, min = 1, max = 35),
+                       bsTooltip("n_sims", "Select the number of simulations to plot",
+                                 "right", options = list(container = "body")),
                        numericInput("max_dist_sims",
                                     "Maximum Distance Between Simulations",
                                     50000, min = 1, max = 10000000),
+                       bsTooltip("max_dist_sims", "Set the maximum distance between simulation start points",
+                                 "right", options = list(container = "body")),
                        numericInput("n_particles",
                                     "Number of Particles per Simulation",
                                     20, min = 1, max = 500),
+                       bsTooltip("n_particles", "Set the number of particles per simulation",
+                                 "right", options = list(container = "body")),
                        sliderInput("evolutions",
                                    "Number of Evolutions",
                                    1,300, 20, step = 1),
+                       bsTooltip("evolutions", "Each evolution is one time step in which forces will act on a particle",
+                                 "right", options = list(container = "body")),
                        sliderInput("subset_evolutions",
                                    "Subset Evolutions",
                                    0, 300, value = c(0,300)),
+                       bsTooltip("subset_evolutions", "Modify this to only plot data from a smaller timeframe",
+                                 "right", options = list(container = "body")),
                        numericInput("jit",
                                     "Jitter",
                                     20, min = 1, max = 500),
+                       bsTooltip("jit", "Jitter shifts all particle locations slightly to avoid overlap",
+                                 "right", options = list(container = "body")),
                        sliderInput("vel_dec",
                                    "Velocity Decay",
-                                    0, 1, 0.3, step = 0.01)
+                                    0, 1, 0.3, step = 0.01),
+                       bsTooltip("vel_dec", "Set the rate of speed decay",
+                                 "right", options = list(container = "body"))
                    ),
                    conditionalPanel(
                      condition = "input.section == 'Modify Forces/Constraints'",
@@ -154,12 +175,18 @@ ui <- fluidPage(
 
 )),mainPanel(
   fluidRow(actionButton("gen_data", "Generate Data"), # Initial data is generated when this event is observed
+           bsTooltip("gen_data", "Data must be generated before creating the image.",
+                     "right", options = list(container = "body")),
            actionButton("show_data", "Show/Hide Data"), #Toggles Dataframe display
            actionButton("gen_image", "Update Output"), # Updates the image/animation
+           bsTooltip("gen_image", "Click here to update the image.",
+                     "right", options = list(container = "body")),
            actionButton("output_type", "Toggle Image/Animation"), # Toggles between output type. Animations take longer to render
            conditionalPanel(
              condition = "input.output_type%2 == 0",
              downloadButton('save', 'Download image')), # Download button appears when not set to output animation
+           bsTooltip("save", "Download a copy of your masterpiece. Maybe print it out and put it on the fridge!",
+                     "right", options = list(container = "body")),
            conditionalPanel(
              condition = "input.show_data%2 == 0",
             dataTableOutput("data")), # Table showing df
