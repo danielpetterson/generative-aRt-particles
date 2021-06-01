@@ -10,8 +10,6 @@ library(colourpicker)
 library(RColorBrewer)
 library(jasmines)
 
-## TODO Allow import of dataframe
-## TODO Doubleclick polygon constraint
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -151,19 +149,24 @@ ui <- fluidPage(
                        sliderInput("xlims_disp", "X-axis Scale",
                                    -3, 3, value = c(-1,1), step = 0.001),
                        sliderInput("ylims_disp", "Y-axis Scale",
-                                   -3, 3, value = c(-1,1), step = 0.001)
-))),mainPanel(
-  fluidRow(actionButton("gen_data", "Generate Data"), 
-           actionButton("gen_image", "Update Output"),
-           selectInput("img_anim",
-                       "Type of Output",
-                       c("Still Image", "Animation"),
-                       selected = "Still Image")),
-    textOutput('test'),
-    #downloadButton('download', 'Download image'),
-    dataTableOutput("data"),
-    plotOutput("image",click="imageclick")
-    )))
+                                   -3, 3, value = c(-1,1), step = 0.001)),
+                   
+
+)),mainPanel(
+  fluidRow(actionButton("gen_data", "Generate Data"), # Initial data is generated when this event is observed
+           actionButton("show_data", "Show/Hide Data"), #Toggles Dataframe display
+           actionButton("gen_image", "Update Output"), # Updates the image/animation
+           actionButton("output_type", "Toggle Image/Animation"), # Toggles between output type. Animations take longer to render
+           conditionalPanel(
+             condition = "input.output_type%2 == 0",
+             downloadButton('save', 'Download image')), # Download button appears when not set to output animation
+           conditionalPanel(
+             condition = "input.show_data%2 == 0",
+            dataTableOutput("data")), # Table showing df
+           plotOutput("image",click="imageclick") # Main image
+
+    
+    ))))
 
 
 # Define server logic
@@ -385,9 +388,9 @@ server <- function(input, output) {
         
         
         
-      if (input$img_anim == "Still Image") {
+      if (input$output_type%%2==0) {
       output$image <- renderPlot({img_final}, height=1000, width=1000)
-      } else if (input$img_anim == "Animation") {
+      } else  {
         output$image <- renderImage({
           # A temp file to save the output.
           # This file will be removed later by renderImage
@@ -398,7 +401,7 @@ server <- function(input, output) {
           img_anim = img_final +
             gganimate::transition_time(time = as.numeric(time))  +
             gganimate::ease_aes('linear') +
-            gganimate::shadow_trail()
+            gganimate::shadow_wake(wake_length=0.5)
           
           anim_save("outfile.gif", animate(img_anim)) # New
           
@@ -410,7 +413,14 @@ server <- function(input, output) {
           )}, deleteFile = TRUE)
         }
     
-      
+      output$save <- downloadHandler(
+        file = "aRtwork.png" , # Set filename
+        content = function(file) {
+          ggsave(img_final, filename = file)
+          png(file = file)
+          dev.off()
+        })
+          
 })}
 
 # Run the application 
