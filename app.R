@@ -4,6 +4,7 @@ library(tidyverse)
 library(magrittr)
 library(ggforce)
 library(gganimate)
+library(transformr)
 library(tidygraph)
 library(colourpicker)
 library(RColorBrewer)
@@ -119,16 +120,12 @@ ui <- fluidPage(
                      condition = "input.forces_and_limits == 'vel_lims'",
                      sliderInput("v_lims", "Velocity Boundaries",
                                  -1000, 1000, value = c(-1000,1000), step = 1)),
-                   conditionalPanel(
-                     h5("Double click on the image to add points to polygon"),
-                     condition = "input.forces_and_limits == 'poly_bounds'"),
-                   
                    ),
                      conditionalPanel(
                        condition = "input.section == 'Display'",
                        selectInput("geom_type",
                                    "Geom Type",
-                                   c("Point", "Curve", "Link"),
+                                   c("Point", "Curve", "Segment"),
                                    selected = "Point"),
                        colourInput("col_element", "Colour Palette", "white",
                                     showColour = "background"),
@@ -136,12 +133,12 @@ ui <- fluidPage(
                        actionButton("col_clear", "Clear Palette"),
                        selectInput("col_factor",
                                    "Colour Factor",
-                                   c("Evolution", "Particle", "Simulation"),
-                                   selected = "Evolution"),
+                                   c("Time", "Particle", "Simulation"),
+                                   selected = "Time"),
                         selectInput("coord_sys",
                                     "Coordinate System",
-                                    c("Equal", "Flipped", "Polar X", "Polar Y"),
-                                    selected = "Equal"),
+                                    c("Cartesian", "Flipped", "Polar X", "Polar Y"),
+                                    selected = "Cartesian"),
                        sliderInput("alph_init", "Initial Opacity",
                                    0, 1, 0.8, step = 0.05),
                        sliderInput("alph_dec", "Opacity Decay",
@@ -165,7 +162,7 @@ ui <- fluidPage(
     textOutput('test'),
     #downloadButton('download', 'Download image'),
     dataTableOutput("data"),
-    plotOutput("image",click="imageclick", dblclick ="polygon_points")
+    plotOutput("image",click="imageclick")
     )))
 
 
@@ -198,9 +195,7 @@ server <- function(input, output) {
                                 x_force_loc,
                                 y_force_str,
                                 y_force_loc,
-                                vel_limits,
-                                poly_points_x,
-                                poly_points_y){
+                                vel_limits){
     l<-c()
     i=1
     
@@ -276,7 +271,7 @@ server <- function(input, output) {
   }
     
 
-    
+
     values <- reactiveValues()
     observeEvent(input$gen_data, {
         values$df <- isolate(reactive({generate_sim_data(input$origin,
@@ -305,69 +300,71 @@ server <- function(input, output) {
                                                      input$imageclick[["x"]],
                                                      input$y_str,
                                                      input$imageclick[["y"]],
-                                                     input$v_lims,
-                                                     input$polygon_points[["x"]],
-                                                     input$polygon_points[["y"]]
-                                                    
-                                                     
+                                                     input$v_lims
                                                     )}))
         values$colour_palette <- rep("white", length(values$df()$x))
         output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
     
+
+    
+    # Adds selected colour to vector of colours for palette generation
     observeEvent(input$col_select, {
-      # Adds selected colour to vector of colours
       values$colour_palette_vec <- append(values$colour_palette_vec,as.character(input$col_element)) 
     })
     
+    # Replaces palette with empty vector when "Clear Palette" button is hit 
+    observeEvent(input$col_clear, {
+      values$colour_palette_vec <- character()
+    })
     
+    # Generates image or animation when "Update Output" button is hit
     observeEvent(input$gen_image, {
       
-      if (input$col_factor == "Evolution") {
+      # Specifies what variable to change colour on
+      if (input$col_factor == "Time") {
         colour_factor <-as.factor(values$df()$time)
         num_colours <- max(as.numeric(values$df()$time))
-        colour_factor_name <- "time"
       } else if (input$col_factor == "Particle") {
         colour_factor <- as.factor(values$df()$particle)
         num_colours <- max(as.numeric(values$df()$particle))
-        colour_factor_name <- "id"
       } else if (input$col_factor == "Simulation") {
         colour_factor <- as.factor(values$df()$sim)
         num_colours <- max(as.numeric(values$df()$sim))
-        colour_factor_name <- "sim"
       }
       
       if (length(values$colour_palette_vec)>=2) {
         # Creates function to interpolate colours from user defined palette
-        palette_maker <- colorRampPalette(values$colour_palette_vec)
+        palette_maker <- grDevices::colorRampPalette(values$colour_palette_vec)
         values$colour_palette <- palette_maker(num_colours)
       }
       
-      img_base<-ggplot(values$df()) +
-            theme_void() + 
-            theme(legend.position = 'none', panel.background = element_rect(fill = input$backg_col)) +
-            xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
-            ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2])) +
-            scale_color_manual(values=values$colour_palette)
+      # Basic ggplot parameters for output
+      img_base<-ggplot2::ggplot(values$df()) +
+        ggplot2::theme_void() + 
+        ggplot2::theme(legend.position = 'none', panel.background = element_rect(fill = input$backg_col)) +
+        ggplot2::xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
+        ggplot2::ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2])) +
+        ggplot2::scale_color_manual(values=values$colour_palette) # Assigns defined colour palette to ggplot object
       
       
       if (input$geom_type == "Point") {
-           img <- img_base + geom_point(aes(x = x,
+           img <- img_base + ggplot2::geom_point(aes(x = x,
                          y = y,
                          colour = colour_factor,
                          alpha = alpha,
                          group = particle),
                          size = values$df()$pathsize)
       } else if (input$geom_type == "Curve") {
-        img <- img_base + geom_curve(aes(x = x,
+        img <- img_base + ggplot2::geom_curve(aes(x = x,
                          y = y,
                          colour = colour_factor,
                          alpha = alpha,
                          xend = xend,
                          yend = yend), 
                          size = values$df()$pathsize)
-      } else if (input$geom_type == "Link") {
-        img <- img_base + geom_link(aes(x = x,
+      } else if (input$geom_type == "Segment") {
+        img <- img_base + ggplot2::geom_segment(aes(x = x,
                                         y = y,
                                         colour = colour_factor,
                                         alpha = alpha,
@@ -375,7 +372,7 @@ server <- function(input, output) {
                                         yend = yend), 
                                         size = values$df()$pathsize[1])
       } 
-      if (input$coord_sys == "Equal") {
+      if (input$coord_sys == "Cartesian") {
         img_final <- img + ggplot2::coord_cartesian()
       } else if (input$coord_sys == "Flipped") {
         img_final <- img + ggplot2::coord_flip()
@@ -400,7 +397,8 @@ server <- function(input, output) {
           # now make the animation
           img_anim = img_final +
             gganimate::transition_time(time = as.numeric(time))  +
-            gganimate::ease_aes('linear')
+            gganimate::ease_aes('linear') +
+            gganimate::shadow_trail()
           
           anim_save("outfile.gif", animate(img_anim)) # New
           
