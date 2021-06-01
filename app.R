@@ -10,7 +10,6 @@ library(RColorBrewer)
 library(jasmines)
 
 ## TODO Allow import of dataframe
-## TODO Generate custom palettes
 ## TODO Doubleclick polygon constraint
 
 # Define UI for application that draws a histogram
@@ -41,10 +40,10 @@ ui <- fluidPage(
                                    -1000, 1000, value = c(-100,100)),
                        numericInput("n_sims",
                                     "Number of Simulations",
-                                    1, min = 1, max = 35),
+                                    5, min = 1, max = 35),
                        numericInput("max_dist_sims",
                                     "Maximum Distance Between Simulations",
-                                    20, min = 1, max = 10000000),
+                                    50000, min = 1, max = 10000000),
                        numericInput("n_particles",
                                     "Number of Particles per Simulation",
                                     20, min = 1, max = 500),
@@ -129,7 +128,7 @@ ui <- fluidPage(
                        condition = "input.section == 'Display'",
                        selectInput("geom_type",
                                    "Geom Type",
-                                   c("Point", "Curve", "Link", "Ribbon"),
+                                   c("Point", "Curve", "Link"),
                                    selected = "Point"),
                        colourInput("col_element", "Colour Palette", "white",
                                     showColour = "background"),
@@ -164,8 +163,8 @@ ui <- fluidPage(
                        c("Still Image", "Animation"),
                        selected = "Still Image")),
     textOutput('test'),
-    dataTableOutput("data"),
     #downloadButton('download', 'Download image'),
+    dataTableOutput("data"),
     plotOutput("image",click="imageclick", dblclick ="polygon_points")
     )))
 
@@ -312,28 +311,37 @@ server <- function(input, output) {
                                                     
                                                      
                                                     )}))
+        values$colour_palette <- rep("white", length(values$df()$x))
         output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
     
     observeEvent(input$col_select, {
       # Adds selected colour to vector of colours
       values$colour_palette_vec <- append(values$colour_palette_vec,as.character(input$col_element)) 
-
-      if (length(values$colour_palette_vec)>=2) {
-        # Creates function to interpolate colours from user defined palette
-        palette_maker <- colorRampPalette(values$colour_palette_vec)
-        values$colour_palette <- palette_maker(max(as.numeric(values$df()$time)))
-      } 
-      
     })
-
-    output$test <- renderText(values$colour_palette)
     
-    
-
     
     observeEvent(input$gen_image, {
       
+      if (input$col_factor == "Evolution") {
+        colour_factor <-as.factor(values$df()$time)
+        num_colours <- max(as.numeric(values$df()$time))
+        colour_factor_name <- "time"
+      } else if (input$col_factor == "Particle") {
+        colour_factor <- as.factor(values$df()$particle)
+        num_colours <- max(as.numeric(values$df()$particle))
+        colour_factor_name <- "id"
+      } else if (input$col_factor == "Simulation") {
+        colour_factor <- as.factor(values$df()$sim)
+        num_colours <- max(as.numeric(values$df()$sim))
+        colour_factor_name <- "sim"
+      }
+      
+      if (length(values$colour_palette_vec)>=2) {
+        # Creates function to interpolate colours from user defined palette
+        palette_maker <- colorRampPalette(values$colour_palette_vec)
+        values$colour_palette <- palette_maker(num_colours)
+      }
       
       img_base<-ggplot(values$df()) +
             theme_void() + 
@@ -343,22 +351,12 @@ server <- function(input, output) {
             scale_color_manual(values=values$colour_palette)
       
       
-      if (input$col_factor == "Evolution") {
-        colour_factor <-as.factor(values$df()$time)
-        colour_factor_name <- "time"
-      } else if (input$col_factor == "Particle") {
-        colour_factor <- as.factor(values$df()$particle)
-        colour_factor_name <- "id"
-      } else if (input$col_factor == "Simulation") {
-        colour_factor <- as.factor(values$df()$sim)
-        colour_factor_name <- "sim"
-      }
-      
       if (input$geom_type == "Point") {
            img <- img_base + geom_point(aes(x = x,
                          y = y,
                          colour = colour_factor,
-                         alpha = alpha),
+                         alpha = alpha,
+                         group = particle),
                          size = values$df()$pathsize)
       } else if (input$geom_type == "Curve") {
         img <- img_base + geom_curve(aes(x = x,
@@ -376,24 +374,9 @@ server <- function(input, output) {
                                         xend = xend,
                                         yend = yend), 
                                         size = values$df()$pathsize[1])
-      }  else if (input$geom_type == "Ribbon") {
-        jasmines_df <- data.frame(x=as.numeric(values$df()$x),
-                                  y=as.numeric(values$df()$y),
-                                  order=values$df()$time,
-                                  id=as.numeric(colour_factor),
-                                  time=as.numeric(values$df()$time),
-                                  sim=as.numeric(values$df()$sim))
-          img <- style_ribbon(jasmines_df,
-                              palette = "viridis",
-                              colour = colour_factor_name,
-                              alpha = c(input$alph_init, input$alph_dec),
-                              background = input$backg_col,
-                              discard = 0,
-                              type = "segment"
-          )
       } 
       if (input$coord_sys == "Equal") {
-        img_final <- img + ggplot2::coord_equal(ratio = 1)
+        img_final <- img + ggplot2::coord_cartesian()
       } else if (input$coord_sys == "Flipped") {
         img_final <- img + ggplot2::coord_flip()
       } else if (input$coord_sys == "Polar X") {
@@ -406,7 +389,7 @@ server <- function(input, output) {
         
         
       if (input$img_anim == "Still Image") {
-      output$image <- renderPlot({img_final}, width = 700)
+      output$image <- renderPlot({img_final}, height=1000, width=1000)
       } else if (input$img_anim == "Animation") {
         output$image <- renderImage({
           # A temp file to save the output.
@@ -423,10 +406,9 @@ server <- function(input, output) {
           
           # Return a list containing the filename
           list(src = "outfile.gif",
-               contentType = 'image/gif'
-               # width = 400,
-               # height = 300,
-               # alt = "This is alternate text"
+               contentType = 'image/gif',
+               width = 1000,
+               height = 1000
           )}, deleteFile = TRUE)
         }
     
