@@ -3,12 +3,15 @@ library(particles)
 library(tidyverse)
 library(magrittr)
 library(ggforce)
+library(gganimate)
 library(tidygraph)
 library(colourpicker)
 library(RColorBrewer)
+library(jasmines)
 
 ## TODO Allow import of dataframe
 ## TODO Generate custom palettes
+## TODO Doubleclick polygon constraint
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -18,7 +21,7 @@ ui <- fluidPage(
                    wellPanel(
                      selectInput("section",
                                  "Section",
-                                 c("Generate Data", "Modify Forces", "Display"),
+                                 c("Generate Data", "Modify Forces/Constraints", "Display"),
                                  selected = "Generate Data"),
                      conditionalPanel(
                        condition = "input.section == 'Generate Data'",
@@ -51,7 +54,6 @@ ui <- fluidPage(
                        sliderInput("subset_evolutions",
                                    "Subset Evolutions",
                                    0, 300, value = c(0,300)),
-                      
                        numericInput("jit",
                                     "Jitter",
                                     20, min = 1, max = 500),
@@ -60,23 +62,26 @@ ui <- fluidPage(
                                     0, 1, 0.3, step = 0.01)
                    ),
                    conditionalPanel(
-                     condition = "input.section == 'Modify Forces'",
-                   selectInput("forces", "Forces to Apply:",
-                               c("Random" = "f_rand",
+                     condition = "input.section == 'Modify Forces/Constraints'",
+                     selectInput("forces_and_limits", "Forces and Constraints:",
+                               c("Random Force" = "f_rand",
                                  "Link Force" = "f_link",
                                  "Collision Force" = "f_coll",
-                                 "Manybody" = "f_mb",
+                                 "Manybody Force" = "f_mb",
                                  "Mean Force" = "f_mean",
-                                 "Attract to Point" = "f_point"),
-                               selected = "Random"),
+                                 "Attract to Point" = "f_point",
+                                 "Velocity Constraint" = "vel_lims",
+                                 "Polygon Constraint" = "poly_bounds"
+                                 ),
+                               selected = "Random Force"),
                    conditionalPanel(
-                     condition = "input.forces == 'f_rand'",
+                     condition = "input.forces_and_limits == 'f_rand'",
                      sliderInput("xlims_rand", "X-axis Bounds",
                                  -1000, 1000, value = c(-1000,1000), step = 1),
                      sliderInput("ylims_rand", "Y-axis Bounds",
                                  -1000, 1000, value = c(-1000,1000), step = 1)),
                    conditionalPanel(
-                     condition = "input.forces == 'f_link'",
+                     condition = "input.forces_and_limits == 'f_link'",
                      numericInput("link_str",
                                   "Strength",
                                   0, min = -500, max = 500),
@@ -84,7 +89,7 @@ ui <- fluidPage(
                                   "Distance",
                                   0, min = 0, max = 500)),
                    conditionalPanel(
-                     condition = "input.forces == 'f_coll'",
+                     condition = "input.forces_and_limits == 'f_coll'",
                      numericInput("coll_str",
                                   "Strength",
                                   0, min = 0, max = 500),
@@ -92,41 +97,52 @@ ui <- fluidPage(
                                   "Radius",
                                   0, min = 0, max = 500)),
                    conditionalPanel(
-                     condition = "input.forces == 'f_mb'",
+                     condition = "input.forces_and_limits == 'f_mb'",
                      numericInput("mb_str",
                                   "Strength",
                                   0, min = -500, max = 500)),
                    conditionalPanel(
-                     condition = "input.forces == 'f_mean'",
+                     condition = "input.forces_and_limits == 'f_mean'",
                      selectInput("mean_self",
                                  "Include Own Speed",
                                  c("Yes", "No"),
                                  selected = "No")),
                    conditionalPanel(
-                     h6("Click on the image to choose a point"),
-                     condition = "input.forces == 'f_point'",
+                     h5("Click on the image to choose a point"),
+                     condition = "input.forces_and_limits == 'f_point'",
                      sliderInput("x_str",
                                  "X-Axis Strength",
                                  0, 10, value = 0, step = 0.1),
                      sliderInput("y_str",
                                  "Y-Axis Strength",
-                                 0, 10, value = 0, step = 0.1))
+                                 0, 10, value = 0, step = 0.1)),
+                   conditionalPanel(
+                     condition = "input.forces_and_limits == 'vel_lims'",
+                     sliderInput("v_lims", "Velocity Boundaries",
+                                 -1000, 1000, value = c(-1000,1000), step = 1)),
+                   conditionalPanel(
+                     h5("Double click on the image to add points to polygon"),
+                     condition = "input.forces_and_limits == 'poly_bounds'"),
                    
                    ),
                      conditionalPanel(
                        condition = "input.section == 'Display'",
-#                       actionButton("gen_image", "Generate Image"),
                        selectInput("geom_type",
                                    "Geom Type",
-                                   c("Point", "Curve", "Link"),
+                                   c("Point", "Curve", "Link", "Ribbon"),
                                    selected = "Point"),
                        colourInput("col_element", "Colour Palette", "white",
                                     showColour = "background"),
                        actionButton("col_select", "Add Colour"),
+                       actionButton("col_clear", "Clear Palette"),
                        selectInput("col_factor",
                                    "Colour Factor",
                                    c("Evolution", "Particle", "Simulation"),
                                    selected = "Evolution"),
+                        selectInput("coord_sys",
+                                    "Coordinate System",
+                                    c("Equal", "Flipped", "Polar X", "Polar Y"),
+                                    selected = "Equal"),
                        sliderInput("alph_init", "Initial Opacity",
                                    0, 1, 0.8, step = 0.05),
                        sliderInput("alph_dec", "Opacity Decay",
@@ -142,11 +158,15 @@ ui <- fluidPage(
                                    -3, 3, value = c(-1,1), step = 0.001)
 ))),mainPanel(
   fluidRow(actionButton("gen_data", "Generate Data"), 
-           actionButton("gen_image", "Update Image")),
+           actionButton("gen_image", "Update Output"),
+           selectInput("img_anim",
+                       "Type of Output",
+                       c("Still Image", "Animation"),
+                       selected = "Still Image")),
     textOutput('test'),
     dataTableOutput("data"),
-    downloadButton('download', 'Download image'),
-    plotOutput("image",click="imageclick")
+    #downloadButton('download', 'Download image'),
+    plotOutput("image",click="imageclick", dblclick ="polygon_points")
     )))
 
 
@@ -178,7 +198,10 @@ server <- function(input, output) {
                                 x_force_str,
                                 x_force_loc,
                                 y_force_str,
-                                y_force_loc){
+                                y_force_loc,
+                                vel_limits,
+                                poly_points_x,
+                                poly_points_y){
     l<-c()
     i=1
     
@@ -213,6 +236,7 @@ server <- function(input, output) {
         wield(mean_force, include_self = self_include) %>%
         wield(x_force, strength=x_force_str, x=x_force_loc) %>%
         wield(y_force, strength=y_force_str, y=y_force_loc) %>%
+        impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits)) %>%
         evolve(evolutions, record)
       l<-c(l,b)
       i=i+1
@@ -281,19 +305,32 @@ server <- function(input, output) {
                                                      input$x_str,
                                                      input$imageclick[["x"]],
                                                      input$y_str,
-                                                     input$imageclick[["y"]]
+                                                     input$imageclick[["y"]],
+                                                     input$v_lims,
+                                                     input$polygon_points[["x"]],
+                                                     input$polygon_points[["y"]]
+                                                    
                                                      
                                                     )}))
         output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
     
-    colour_palette_vec <- character()
-      
     observeEvent(input$col_select, {
-      colour_palette_vec <- append(colour_palette_vec,as.character(input$col_element))
-      output$test <- renderText(colour_palette_vec)
-#      print(colour_palette_vec)
+      # Adds selected colour to vector of colours
+      values$colour_palette_vec <- append(values$colour_palette_vec,as.character(input$col_element)) 
+
+      if (length(values$colour_palette_vec)>=2) {
+        # Creates function to interpolate colours from user defined palette
+        palette_maker <- colorRampPalette(values$colour_palette_vec)
+        values$colour_palette <- palette_maker(max(as.numeric(values$df()$time)))
+      } 
+      
     })
+
+    output$test <- renderText(values$colour_palette)
+    
+    
+
     
     observeEvent(input$gen_image, {
       
@@ -302,31 +339,35 @@ server <- function(input, output) {
             theme_void() + 
             theme(legend.position = 'none', panel.background = element_rect(fill = input$backg_col)) +
             xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
-            ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2])) #+
-            scale_color_manual()
+            ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2])) +
+            scale_color_manual(values=values$colour_palette)
+      
       
       if (input$col_factor == "Evolution") {
         colour_factor <-as.factor(values$df()$time)
+        colour_factor_name <- "time"
       } else if (input$col_factor == "Particle") {
         colour_factor <- as.factor(values$df()$particle)
+        colour_factor_name <- "id"
       } else if (input$col_factor == "Simulation") {
-        colour_factor <- as.factor(values$df()$particle)
+        colour_factor <- as.factor(values$df()$sim)
+        colour_factor_name <- "sim"
       }
       
       if (input$geom_type == "Point") {
            img <- img_base + geom_point(aes(x = x,
                          y = y,
                          colour = colour_factor,
-                         alpha = alpha)
-                         , size = values$df()$pathsize)
+                         alpha = alpha),
+                         size = values$df()$pathsize)
       } else if (input$geom_type == "Curve") {
         img <- img_base + geom_curve(aes(x = x,
                          y = y,
                          colour = colour_factor,
                          alpha = alpha,
                          xend = xend,
-                         yend = yend, 
-                         size = values$df()$pathsize))
+                         yend = yend), 
+                         size = values$df()$pathsize)
       } else if (input$geom_type == "Link") {
         img <- img_base + geom_link(aes(x = x,
                                         y = y,
@@ -335,42 +376,62 @@ server <- function(input, output) {
                                         xend = xend,
                                         yend = yend), 
                                         size = values$df()$pathsize[1])
+      }  else if (input$geom_type == "Ribbon") {
+        jasmines_df <- data.frame(x=as.numeric(values$df()$x),
+                                  y=as.numeric(values$df()$y),
+                                  order=values$df()$time,
+                                  id=as.numeric(colour_factor),
+                                  time=as.numeric(values$df()$time),
+                                  sim=as.numeric(values$df()$sim))
+          img <- style_ribbon(jasmines_df,
+                              palette = "viridis",
+                              colour = colour_factor_name,
+                              alpha = c(input$alph_init, input$alph_dec),
+                              background = input$backg_col,
+                              discard = 0,
+                              type = "segment"
+          )
       } 
-      output$image <- renderPlot({img})
-
-    })
-    
-    output$downloadImage <- downloadHandler(
-      filename = "Modified_image.jpeg",
-      contentType = "image/jpeg",
-      content = function(file) {
-        ## copy the file from the updated image location to the final download location
-        file.copy(img, file)
+      if (input$coord_sys == "Equal") {
+        img_final <- img + ggplot2::coord_equal(ratio = 1)
+      } else if (input$coord_sys == "Flipped") {
+        img_final <- img + ggplot2::coord_flip()
+      } else if (input$coord_sys == "Polar X") {
+        img_final <- img + ggplot2::coord_polar(theta="x")
+      } else if (input$coord_sys == "Polar Y") {
+        img_final <- img + ggplot2::coord_polar(theta="y")
       }
-    )  
-    # output$down <- downloadHandler(
-    #   filename =  function() {
-    #     paste("iris", input$var3, sep=".")
-    #   },
-    #   # content is a function with argument file. content writes the plot to the device
-    #   content = function(file) {
-    #     if(input$var3 == "png")
-    #       png(file) # open the png device
-    #     else
-    #       pdf(file) # open the pdf device
-    #     myPlot() 
-    #     dev.off()  # turn the device off
-    #     
-    #   } 
-    # )
-    output$download <-  downloadHandler(
-      filename = function() {'test.png' },
-      content = function(file) {
-        ggsave(file, plot = output$image(), device = "png")
-      }
-    )
+      
+        
+        
+        
+      if (input$img_anim == "Still Image") {
+      output$image <- renderPlot({img_final}, width = 700)
+      } else if (input$img_anim == "Animation") {
+        output$image <- renderImage({
+          # A temp file to save the output.
+          # This file will be removed later by renderImage
+          
+          outfile <- tempfile(fileext='.gif')
+          
+          # now make the animation
+          img_anim = img_final +
+            gganimate::transition_time(time = as.numeric(time))  +
+            gganimate::ease_aes('linear')
+          
+          anim_save("outfile.gif", animate(img_anim)) # New
+          
+          # Return a list containing the filename
+          list(src = "outfile.gif",
+               contentType = 'image/gif'
+               # width = 400,
+               # height = 300,
+               # alt = "This is alternate text"
+          )}, deleteFile = TRUE)
+        }
     
-}
+      
+})}
 
 # Run the application 
 shinyApp(ui = ui, server = server)
