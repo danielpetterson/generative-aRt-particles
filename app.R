@@ -9,7 +9,6 @@ library(transformr)
 library(tidygraph)
 library(colourpicker)
 library(RColorBrewer)
-library(jasmines)
 
 
 # Define UI for application that draws a histogram
@@ -89,12 +88,15 @@ ui <- fluidPage(
                                  "Manybody Force" = "f_mb",
                                  "Mean Force" = "f_mean",
                                  "Attract to Point" = "f_point",
-                                 "Velocity Constraint" = "vel_lims",
-                                 "Polygon Constraint" = "poly_bounds"
+                                 "Velocity Constraint" = "vel_lims"
                                  ),
                                selected = "Random Force"),
                    conditionalPanel(
                      condition = "input.forces_and_limits == 'f_rand'",
+                     selectInput("rand_apply",
+                                 "Apply Force?",
+                                 c("Yes", "No"),
+                                 selected = "Yes"),
                      sliderInput("xlims_rand", "X-axis Bounds",
                                  -1000, 1000, value = c(-1000,1000), step = 1),
                      sliderInput("ylims_rand", "Y-axis Bounds",
@@ -213,6 +215,7 @@ server <- function(input, output) {
                                 jit,
                                 pathsize,
                                 seed = NULL,
+                                rand_apply,
                                 rand_x,
                                 rand_y,
                                 link_strength,
@@ -244,16 +247,18 @@ server <- function(input, output) {
         x <- isolate(runif(1, min = loc[1] - abs(xlims[1]), max = loc[1] + abs(xlims[2])))
         y <- isolate(runif(1, min = loc[2] - abs(ylims[1]), max = loc[2] + abs(ylims[2])))
       } else {
-        x <- runif(n, min = xlims[1], max = xlims[2])
-        y <- runif(n, min = ylims[1], max = ylims[2])
+        x <- isolate(runif(n, min = xlims[1], max = xlims[2]))
+        y <- isolate(runif(n, min = ylims[1], max = ylims[2]))
       }
       # Generate initial velocity of particle
       x_vel <- runif(n, min = -1, max = 1)
       y_vel <- runif(n, min = -1, max = 1)
       
       b <- create_empty(n) %>% 
-        simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel)) %>% 
-        wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
+        simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel))
+      
+        if(rand_apply == 'Yes') {
+        b %<>% wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
         wield(link_force, strength=link_strength, distance=link_dist) %>%
         wield(collision_force, strength=coll_strength, radius=coll_rad) %>%
         wield(manybody_force, strength = mb_strength) %>%
@@ -262,6 +267,16 @@ server <- function(input, output) {
         wield(y_force, strength=y_force_str, y=y_force_loc) %>%
         impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits)) %>%
         evolve(evolutions, record)
+        } else {
+        b %<>%  wield(link_force, strength=link_strength, distance=link_dist) %>%
+          wield(collision_force, strength=coll_strength, radius=coll_rad) %>%
+          wield(manybody_force, strength = mb_strength) %>%
+          wield(mean_force, include_self = self_include) %>%
+          wield(x_force, strength=x_force_str, x=x_force_loc) %>%
+          wield(y_force, strength=y_force_str, y=y_force_loc) %>%
+          impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits)) %>%
+          evolve(evolutions, record)
+        }
       l<-c(l,b)
       i=i+1
     }
@@ -318,6 +333,7 @@ server <- function(input, output) {
                                                      input$jit,
                                                      input$pathsize,
                                                      input$seed,
+                                                     input$rand_apply,
                                                      input$xlims_rand,
                                                      input$ylims_rand,
                                                      input$link_str,
@@ -435,8 +451,8 @@ server <- function(input, output) {
           # Return a list containing the filename
           list(src = "outfile.gif",
                contentType = 'image/gif',
-               width = 1000,
-               height = 1000
+               width = 800,
+               height = 800
           )}, deleteFile = TRUE)
         }
     
