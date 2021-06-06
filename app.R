@@ -10,8 +10,9 @@ library(tidygraph)
 library(colourpicker)
 library(RColorBrewer)
 
+## TODO Add modal to describe process
 
-# Define UI for application that draws a histogram
+# Define UI for application
 ui <- fluidPage(
         titlePanel("Generative aRt with R"),
         fluidRow(
@@ -19,10 +20,10 @@ ui <- fluidPage(
                    wellPanel(
                      selectInput("section",
                                  "Section",
-                                 c("Generate Data", "Modify Forces/Constraints", "Display"),
-                                 selected = "Generate Data"),
+                                 c("Data", "Modify Forces/Constraints", "Display"),
+                                 selected = "Data"),
                      conditionalPanel(
-                       condition = "input.section == 'Generate Data'",
+                       condition = "input.section == 'Data'",
                        
                        numericInput("seed",
                                     "Seed",
@@ -83,7 +84,6 @@ ui <- fluidPage(
                      condition = "input.section == 'Modify Forces/Constraints'",
                      selectInput("forces_and_limits", "Forces and Constraints:",
                                c("Random Force" = "f_rand",
-                                 "Link Force" = "f_link",
                                  "Collision Force" = "f_coll",
                                  "Manybody Force" = "f_mb",
                                  "Mean Force" = "f_mean",
@@ -102,18 +102,10 @@ ui <- fluidPage(
                      sliderInput("ylims_rand", "Y-axis Bounds",
                                  -1000, 1000, value = c(-1000,1000), step = 1)),
                    conditionalPanel(
-                     condition = "input.forces_and_limits == 'f_link'",
-                     numericInput("link_str",
-                                  "Strength",
-                                  0, min = -500, max = 500),
-                     numericInput("link_dist",
-                                  "Distance",
-                                  0, min = 0, max = 500)),
-                   conditionalPanel(
                      condition = "input.forces_and_limits == 'f_coll'",
-                     numericInput("coll_str",
+                     sliderInput("coll_str",
                                   "Strength",
-                                  0, min = 0, max = 500),
+                                  0, 1, value = 0, step = 0.01),
                      numericInput("coll_rad",
                                   "Radius",
                                   0, min = 0, max = 500)),
@@ -124,6 +116,10 @@ ui <- fluidPage(
                                   0, min = -500, max = 500)),
                    conditionalPanel(
                      condition = "input.forces_and_limits == 'f_mean'",
+                     selectInput("mf_apply",
+                                 "Apply Force?",
+                                 c("Yes", "No"),
+                                 selected = "No"),
                      selectInput("mean_self",
                                  "Include Own Speed",
                                  c("Yes", "No"),
@@ -146,7 +142,7 @@ ui <- fluidPage(
                        condition = "input.section == 'Display'",
                        selectInput("geom_type",
                                    "Geom Type",
-                                   c("Point", "Curve", "Segment"),
+                                   c("Point", "Curve", "Segment", "Path"),
                                    selected = "Point"),
                        colourInput("col_element", "Colour Palette", "white",
                                     showColour = "background"),
@@ -214,15 +210,14 @@ server <- function(input, output) {
                                 alpha_dec,
                                 jit,
                                 pathsize,
-                                seed = NULL,
+                                seed,
                                 rand_apply,
                                 rand_x,
                                 rand_y,
-                                link_strength,
-                                link_dist,
                                 coll_strength,
                                 coll_rad,
                                 mb_strength,
+                                mf_apply,
                                 mean_self_include,
                                 x_force_str,
                                 x_force_loc,
@@ -238,7 +233,7 @@ server <- function(input, output) {
       self_include <- FALSE
     }
     
-    isolate(set.seed(seed))
+    set.seed(seed)
     
     while(i <= ns) {
       # Generate starting point coordinates
@@ -257,26 +252,20 @@ server <- function(input, output) {
       b <- create_empty(n) %>% 
         simulate(velocity_decay = vel_dec, setup = predefined_genesis(x,y,x_vel,y_vel))
       
-        if(rand_apply == 'Yes') {
-        b %<>% wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y)) %>%
-        wield(link_force, strength=link_strength, distance=link_dist) %>%
-        wield(collision_force, strength=coll_strength, radius=coll_rad) %>%
-        wield(manybody_force, strength = mb_strength) %>%
-        wield(mean_force, include_self = self_include) %>%
-        wield(x_force, strength=x_force_str, x=x_force_loc) %>%
-        wield(y_force, strength=y_force_str, y=y_force_loc) %>%
-        impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits)) %>%
-        evolve(evolutions, record)
-        } else {
-        b %<>%  wield(link_force, strength=link_strength, distance=link_dist) %>%
-          wield(collision_force, strength=coll_strength, radius=coll_rad) %>%
-          wield(manybody_force, strength = mb_strength) %>%
-          wield(mean_force, include_self = self_include) %>%
-          wield(x_force, strength=x_force_str, x=x_force_loc) %>%
-          wield(y_force, strength=y_force_str, y=y_force_loc) %>%
-          impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits)) %>%
-          evolve(evolutions, record)
-        }
+      if(rand_apply == 'Yes') {
+        b %<>% wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y))
+      }
+        b %<>% wield(collision_force, strength=coll_strength, radius=coll_rad)
+        b %<>% wield(manybody_force, strength = mb_strength)
+      if(mf_apply == 'Yes') {
+        b %<>% wield(mean_force, include_self = self_include)
+      }
+        b %<>% wield(x_force, strength=x_force_str, x=x_force_loc)
+        b %<>% wield(y_force, strength=y_force_str, y=y_force_loc)
+        b %<>% impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits))
+        b %<>% evolve(evolutions, record)
+      
+        
       l<-c(l,b)
       i=i+1
     }
@@ -336,11 +325,10 @@ server <- function(input, output) {
                                                      input$rand_apply,
                                                      input$xlims_rand,
                                                      input$ylims_rand,
-                                                     input$link_str,
-                                                     input$link_dist,
                                                      input$coll_str,
                                                      input$coll_rad,
                                                      input$mb_str,
+                                                     input$mf_apply,
                                                      input$mean_self,
                                                      input$x_str,
                                                      input$imageclick[["x"]],
@@ -395,29 +383,40 @@ server <- function(input, output) {
       
       
       if (input$geom_type == "Point") {
-           img <- img_base + ggplot2::geom_point(aes(x = x,
-                         y = y,
-                         colour = colour_factor,
-                         alpha = alpha,
-                         group = particle),
-                         size = values$df()$pathsize)
+           img <- img_base + 
+             ggplot2::geom_point(aes(x = x,
+                                     y = y,
+                                     colour = colour_factor,
+                                     alpha = alpha,
+                                     group = particle),
+                                     size = values$df()$pathsize)
       } else if (input$geom_type == "Curve") {
-        img <- img_base + ggplot2::geom_curve(aes(x = x,
-                         y = y,
-                         colour = colour_factor,
-                         alpha = alpha,
-                         xend = xend,
-                         yend = yend), 
-                         size = values$df()$pathsize)
+        img <- img_base + 
+            ggplot2::geom_curve(aes(x = x,
+                                    y = y,
+                                    colour = colour_factor,
+                                    alpha = alpha,
+                                    xend = xend,
+                                    yend = yend), 
+                                    size = values$df()$pathsize)
       } else if (input$geom_type == "Segment") {
-        img <- img_base + ggplot2::geom_segment(aes(x = x,
-                                        y = y,
-                                        colour = colour_factor,
-                                        alpha = alpha,
-                                        xend = xend,
-                                        yend = yend), 
-                                        size = values$df()$pathsize[1])
+        img <- img_base + 
+          ggplot2::geom_segment(aes(x = x,
+                                    y = y,
+                                    colour = colour_factor,
+                                    alpha = alpha,
+                                    xend = xend,
+                                    yend = yend), 
+                                    size = values$df()$pathsize[1])
+      } else if (input$geom_type == "Path") {
+        img <- img_base + 
+          ggplot2::geom_path(aes(x = x,
+                                 y = y,
+                                 colour = colour_factor,
+                                 alpha = alpha), 
+                                 size = values$df()$pathsize[1])
       } 
+      
       if (input$coord_sys == "Cartesian") {
         img_final <- img + ggplot2::coord_cartesian()
       } else if (input$coord_sys == "Flipped") {
