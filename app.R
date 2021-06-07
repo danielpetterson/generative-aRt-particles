@@ -197,6 +197,7 @@ ui <- fluidPage(
 # Define server logic
 server <- function(input, output) {
   
+  # Modal that presents when the app opens
   shinyalert(
     title = "App Info",
     text = "This app uses data generated from a particle physics simulation to create images. 
@@ -216,6 +217,7 @@ server <- function(input, output) {
     animation = FALSE
   )
   
+  # Creates data using all non-display parameters
   generate_sim_data <- function(origin,
                                 ns,
                                 max_dist,
@@ -246,6 +248,7 @@ server <- function(input, output) {
     l<-c()
     i=1
     
+    # Convert text input to bool for mean force parameter
     if (mean_self_include == 'Yes') {
       self_include <- TRUE
     } else {
@@ -254,6 +257,7 @@ server <- function(input, output) {
     
     set.seed(seed)
     
+    # Loop for each simulation
     while(i <= ns) {
       # Generate starting point coordinates
       if(origin == "Single Point") {
@@ -274,18 +278,18 @@ server <- function(input, output) {
       if(rand_apply == 'Yes') {
         b %<>% wield(random_force, xmin=min(rand_x), xmax=max(rand_x), ymin=min(rand_y), ymax=max(rand_y))
       }
-        b %<>% wield(collision_force, strength=coll_strength, radius=coll_rad)
-        b %<>% wield(manybody_force, strength = mb_strength)
+        b %<>% wield(collision_force, strength=coll_strength, radius=coll_rad) # Apply collision force
+        b %<>% wield(manybody_force, strength = mb_strength) # Apply manybody force
       if(mf_apply == 'Yes') {
-        b %<>% wield(mean_force, include_self = self_include)
+        b %<>% wield(mean_force, include_self = self_include) # Apply mean force
       }
-        b %<>% wield(x_force, strength=x_force_str, x=x_force_loc)
-        b %<>% wield(y_force, strength=y_force_str, y=y_force_loc)
-        b %<>% impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits))
-        b %<>% evolve(evolutions, record)
+        b %<>% wield(x_force, strength=x_force_str, x=x_force_loc) # The x component to the 'Attract to Point' force
+        b %<>% wield(y_force, strength=y_force_str, y=y_force_loc) # The y component to the 'Attract to Point' force
+        b %<>% impose(velocity_constraint, vmin=min(vel_limits), vmax=max(vel_limits)) # Impose upper and lower velocity bounds
+        b %<>% evolve(evolutions, record) # Evolve over number of evolutions
       
         
-      l<-c(l,b)
+      l<-c(l,b) # Append simulation object to list
       i=i+1
     }
     # Extract simulation history
@@ -306,6 +310,7 @@ server <- function(input, output) {
     traces$time <- rep(1:evolutions, each=n)
     traces$alpha <- alpha_init * (1 - alpha_dec)^(traces$time-1)
     
+    # Create xend and yend values
     traces_end <- traces %>%
       dplyr::mutate(time = time - 1) %>%
       dplyr::filter(time > 0)
@@ -318,6 +323,7 @@ server <- function(input, output) {
     traces$time <- as.factor(traces$time)
     traces$pathsize <- pathsize
     
+    # Apply subsetting of time steps/evolutions
     traces %<>% filter(as.numeric(time) >= min(evol_subset) & as.numeric(time) <= max(evol_subset))
     
     return(traces)
@@ -325,7 +331,9 @@ server <- function(input, output) {
     
 
 
-    values <- reactiveValues()
+    values <- reactiveValues() # Create object for restoring reactive values
+    
+    # Generate and display data when button press observed
     observeEvent(input$gen_data, {
         values$df <- isolate(reactive({generate_sim_data(input$origin,
                                                      input$n_sims,
@@ -355,7 +363,9 @@ server <- function(input, output) {
                                                      input$imageclick[["y"]],
                                                      input$v_lims
                                                     )}))
+        # Set default palette to vector containing only white
         values$colour_palette <- rep("white", length(values$df()$x))
+        # Display data table
         output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
     })
     
@@ -395,13 +405,18 @@ server <- function(input, output) {
       
       # Basic ggplot parameters for output
       img_base<-ggplot2::ggplot(values$df()) +
+        # Sets theme
         ggplot2::theme_void() + 
+        # Removes legend and sets plot background colour
         ggplot2::theme(legend.position = 'none', panel.background = element_rect(fill = input$backg_col)) +
+        # Sets xlim to the most extreme values observed across all simulations
         ggplot2::xlim(min(values$df()$x)*abs(input$xlims_disp[1]),max(values$df()$x)*abs(input$xlims_disp[2])) +
+        # Sets ylim to the most extreme values observed across all simulations
         ggplot2::ylim(min(values$df()$y)*abs(input$ylims_disp[1]),max(values$df()$y)*abs(input$ylims_disp[2])) +
-        ggplot2::scale_color_manual(values=values$colour_palette) # Assigns defined colour palette to ggplot object
+        # Assigns defined colour palette to ggplot object
+        ggplot2::scale_color_manual(values=values$colour_palette) 
       
-      
+      # Append selected geom to img_base
       if (input$geom_type == "Point") {
            img <- img_base + 
              ggplot2::geom_point(aes(x = x,
@@ -437,6 +452,7 @@ server <- function(input, output) {
                                  size = values$df()$pathsize[1])
       } 
       
+      # Set coordinate system used to plot
       if (input$coord_sys == "Cartesian") {
         img_final <- img + ggplot2::coord_cartesian()
       } else if (input$coord_sys == "Flipped") {
@@ -451,21 +467,20 @@ server <- function(input, output) {
         
         
       if (input$output_type%%2==0) {
-      output$image <- renderPlot({img_final}, height=1000, width=1000)
+      output$image <- renderPlot({img_final}, height=800, width=800)
       } else  {
         output$image <- renderImage({
-          # A temp file to save the output.
-          # This file will be removed later by renderImage
           
+          # A temp file to save the output
           outfile <- tempfile(fileext='.gif')
           
-          # now make the animation
+          # Make the animation
           img_anim = img_final +
             gganimate::transition_time(time = as.numeric(time))  +
             gganimate::ease_aes('linear') +
             gganimate::shadow_wake(wake_length=0.5)
           
-          anim_save("outfile.gif", animate(img_anim)) # New
+          anim_save("outfile.gif", animate(img_anim))
           
           # Return a list containing the filename
           list(src = "outfile.gif",
@@ -474,9 +489,9 @@ server <- function(input, output) {
                height = 800
           )}, deleteFile = TRUE)
         }
-    
+      # Save image to file
       output$save <- downloadHandler(
-        file = "aRtwork.png" , # Set filename
+        file = "aRtwork.png" , # Set default filename
         content = function(file) {
           ggsave(img_final, filename = file)
           png(file = file)
