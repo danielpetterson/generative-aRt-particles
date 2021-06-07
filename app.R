@@ -238,7 +238,7 @@ server <- function(input, output) {
     while(i <= ns) {
       # Generate starting point coordinates
       if(origin == "Single Point") {
-        loc <- isolate(runif(2, min = 0, max = max_dist))
+        loc <- isolate(runif(2, min = -max_dist/2, max = max_dist/2))
         x <- isolate(runif(1, min = loc[1] - abs(xlims[1]), max = loc[1] + abs(xlims[2])))
         y <- isolate(runif(1, min = loc[2] - abs(ylims[1]), max = loc[2] + abs(ylims[2])))
       } else {
@@ -285,7 +285,7 @@ server <- function(input, output) {
     traces$particle <- as.factor(rep(1:n, evolutions))
     traces$sim <- as.factor(rep(1:ns, each=evolutions*n))
     traces$time <- rep(1:evolutions, each=n)
-    traces$alpha <- alpha_init * (1 - alpha_dec)^(traces$time)
+    traces$alpha <- alpha_init * (1 - alpha_dec)^(traces$time-1)
     
     traces_end <- traces %>%
       dplyr::mutate(time = time - 1) %>%
