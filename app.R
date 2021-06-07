@@ -352,6 +352,7 @@ server <- function(input, output) {
       values$colour_palette_vec <- character()
     })
     
+    observeEvent(input$gen_data, {
     # Generates image or animation when "Update Output" button is hit
     observeEvent(input$gen_image, {
       
@@ -463,7 +464,8 @@ server <- function(input, output) {
           dev.off()
         })
           
-})}
+})})
+}
 
 # Run the application 
 shinyApp(ui = ui, server = server)
