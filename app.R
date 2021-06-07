@@ -9,11 +9,11 @@ library(transformr)
 library(tidygraph)
 library(colourpicker)
 library(RColorBrewer)
-
-## TODO Add modal to describe process
+library(shinyalert)
 
 # Define UI for application
 ui <- fluidPage(
+        useShinyalert(), # Displays information modal
         titlePanel("Generative aRt with R"),
         fluidRow(
             column(3,
@@ -196,6 +196,25 @@ ui <- fluidPage(
 
 # Define server logic
 server <- function(input, output) {
+  
+  shinyalert(
+    title = "App Info",
+    text = "This app uses data generated from a particle physics simulation to create images. 
+     When you've selected the settings you want, hit 'Generate Data' followed by 'Update Image'. 
+     Hover over any options for more information",
+    size = "s", 
+    closeOnEsc = TRUE,
+    closeOnClickOutside = TRUE,
+    html = FALSE,
+    type = "info",
+    showConfirmButton = TRUE,
+    showCancelButton = FALSE,
+    confirmButtonText = "OK",
+    confirmButtonCol = "#AEDEF4",
+    timer = 0,
+    imageUrl = "",
+    animation = FALSE
+  )
   
   generate_sim_data <- function(origin,
                                 ns,
