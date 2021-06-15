@@ -503,3 +503,8 @@ server <- function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+
+
+# Update version deployed to web
+#library(rsconnect)
+#deployApp()
