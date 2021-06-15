@@ -1,4 +1,5 @@
 library(shiny)
+library(shinythemes)
 library(shinyBS)
 library(particles)
 library(tidyverse)
@@ -13,6 +14,7 @@ library(shinyalert)
 
 # Define UI for application
 ui <- fluidPage(
+        theme = shinytheme("slate"),
         useShinyalert(), # Displays information modal
         titlePanel("Generative aRt with R"),
         fluidRow(
@@ -200,9 +202,7 @@ server <- function(input, output) {
   # Modal that presents when the app opens
   shinyalert(
     title = "App Info",
-    text = "This app uses data generated from a particle physics simulation to create images. 
-     When you've selected the settings you want, hit 'Generate Data' followed by 'Update Image'. 
-     Hover over any options for more information",
+    text = "This app uses data generated from a particle physics simulation to create images. When you've selected the settings you want, hit 'Generate Data' followed by 'Update Image'. Hover over any options for more information",
     size = "s", 
     closeOnEsc = TRUE,
     closeOnClickOutside = TRUE,
