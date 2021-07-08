@@ -510,7 +510,7 @@ server <- function(input, output) {
         file = "aRtwork.png" , # Set default filename
         content = function(file) {
           ggsave(img_final, filename = file)
-          png(file = file)
+          png(file = file, units="in", width=25, height=25, res=300)
           dev.off()
         })
           
