@@ -11,11 +11,11 @@ library(tidygraph)
 library(colourpicker)
 library(RColorBrewer)
 library(shinyalert)
+library(DT)
 
 # Define UI for application
 ui <- fluidPage(
         theme = shinytheme("slate"),
-        useShinyalert(), # Displays information modal
         titlePanel("Generative aRt with R"),
         fluidRow(
             column(3,
@@ -205,7 +205,7 @@ ui <- fluidPage(
                      "right", options = list(container = "body")),
            conditionalPanel(
              condition = "input.show_data%2 == 0",
-            dataTableOutput("data")), # Table showing df
+             DT::DTOutput("data")), # Table showing df
            plotOutput("image",click="imageclick") # Main image
 
     
@@ -382,7 +382,7 @@ server <- function(input, output) {
         # Set default palette to vector containing only white
         values$colour_palette <- rep("white", length(values$df()$x))
         # Display data table
-        output$data <- renderDataTable(values$df(),options =list(pageLength = 5))
+        output$data <- DT::renderDT(values$df(),options =list(pageLength = 5))
     })
     
 
